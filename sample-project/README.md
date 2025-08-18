@@ -2226,16 +2226,21 @@ HOST rebooted
 ---
 ## 7. Backup and Restoring Data
 
-We moved the application to a new namespace 'crud-webapplication' from 'default' namespace, and the MongoDB StatefulSet in the new namespace is uses new PersistentVolumeClaims (PVCs). 
+We moved the application to a new namespace 'crud-webapplication' from 'default' namespace. 
 
-PVCs are always namespace-scoped. Since the old data is in the old PVCs, we need to migrate that data to the new PVCs in the new namespace.
+The MongoDB data was stored in Persistent Volumes (PVs) in the `default` namespace. After the move, the MongoDB in the new namespace is using new PVs (and hence new directories on the NFS server), so the old data is not present.
 
-We have several options out of which :
+To restore the old data, we need to make the MongoDB StatefulSet in the new namespace use the old PVs. However, note that PVs are cluster-scoped, but Persistent Volume Claims (PVCs) are namespace-scoped. The old PVCs are in the `default` namespace and bound to the old PVs. We cannot directly use the same PVC in the new namespace because PVCs are namespaced.
+
+However, note that **PVs are always cluster-scoped,** but **PVCs are namespace-scoped.**
+
+So, to restore data, We have several options out of which :
 - Either **reuse the old PVs by updating the PVCs in the new namespace to bind to the old PVs**.
    - This requires manually creating PVCs in the new namespace that are bound to the existing PVs (which were used in the default namespace).
 - Or, **Copy the data from the old PVs to the new PVs**.
    - This can be done by creating a temporary data migration pod that mounts both the old PVC and the new PVC and copies the data.
-The second option is more safer, because it does not require changing the PV bindings. Also, it leaves the old data intact as a backup.
+
+Given the complexity and potential downtime of first option (because we have to delete the old PVCs and then recreate in the new namespace, and also the PVs are in "Released" state and need to be manually recycled), we might prefer second option for simplicity and safety.
 
    
    List the old PVCs used by the MongoDB StatefulSet in the default namespace.
